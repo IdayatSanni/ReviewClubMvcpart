@@ -1,0 +1,44 @@
+﻿@model ReviewClubMvcpart.Models.ViewModels.BookDetails
+
+<a href="/BookPage/Delete/@Model.Book.Id">Delete</a>
+<a href="/BookPage/Edit/@Model.Book.Id">Edit</a>
+<a href="/BookPage/List" class="btn btn-secondary">Back to List</a>
+
+<div class="row">
+    <div class="col-md-6">
+        <div>
+            <label>Title</label>
+            <div>@Model.Book.BookName</div>
+        </div>
+        <div>
+            @if (!string.IsNullOrEmpty(Model.Book.BookPicture))
+            {
+                <img style="width:150px; height:auto;" src="@Url.Content("~/images/books/" + Model.Book.BookPicture)" alt="@Model.Book.BookName" />
+            }
+            else
+            {
+                <img src="~/images/books/default.png" alt="No Image" style="width:150px; height:auto;" />
+            }
+        </div>
+        <div>
+            <label>Author</label>
+            <div>@Model.Book.BookAuthor</div>
+        </div>
+        <div>
+            <label>Category</label>
+            <div>@Model.Book.CategoryName</div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <h4>Reviews:</h4>
+        <ul>
+            @foreach (var review in Model.BookReviews)
+            {
+                <li>
+                    @review.ReviewText - <em>by @review.ReviewerName on @review.ReviewDate.ToShortDateString()</em>
+                </li>
+            }
+        </ul>
+    </div>
+</div>

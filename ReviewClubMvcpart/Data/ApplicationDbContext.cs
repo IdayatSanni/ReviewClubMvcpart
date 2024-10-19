@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using ReviewClubCms.Models;
+using ReviewClubMvcpart.Models;
 
-namespace ReviewClubCms.Data
+namespace ReviewClubMvcpart.Data
 {
     public class ApplicationDbContext : IdentityDbContext
     {
@@ -22,18 +22,21 @@ namespace ReviewClubCms.Data
             // Define the relationships
             modelBuilder.Entity<Review>()
                 .HasOne(r => r.Book)
-                .WithMany(b => b.Reviews)
-                .HasForeignKey(r => r.BookId);
+                .WithMany(b => b.Reviews) // Navigation property in Book
+                .HasForeignKey(r => r.BookId)
+                .IsRequired(); // Ensure Book cannot be null
 
             modelBuilder.Entity<Review>()
-                .HasOne(r => r.Reviewers)
-                .WithMany(r => r.Reviews)
-                .HasForeignKey(r => r.ReviewersId);
+                .HasOne(r => r.Reviewer)
+                .WithMany(re => re.Reviews) // Navigation property in Reviewer
+                .HasForeignKey(r => r.ReviewersId)
+                .IsRequired(); // Ensure Reviewer cannot be null
 
             modelBuilder.Entity<Book>()
                 .HasOne(b => b.Category)
                 .WithMany(c => c.Books)
-                .HasForeignKey(b => b.CategoryId);
+                .HasForeignKey(b => b.CategoryId)
+                .OnDelete(DeleteBehavior.Cascade); // Cascade delete if needed
         }
     }
 }

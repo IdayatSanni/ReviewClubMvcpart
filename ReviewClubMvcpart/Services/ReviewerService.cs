@@ -1,117 +1,175 @@
-﻿using Microsoft.EntityFrameworkCore;
-using ReviewClubCms.Data;
-using ReviewClubCms.Dtos;
-using ReviewClubCms.Interfaces;
-using ReviewClubCms.Models;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using ReviewClubMvcpart.Data;
+using ReviewClubMvcpart.Dtos;
+using ReviewClubMvcpart.Interfaces;
+using ReviewClubMvcpart.Models;
 
-namespace ReviewClubCms.Services
+namespace ReviewClubMvcpart.Services
 {
     public class ReviewerService : IReviewerService
     {
         private readonly ApplicationDbContext _context;
 
+        // Dependency injection of the database context
         public ReviewerService(ApplicationDbContext context)
         {
             _context = context;
         }
 
-        public async Task<IEnumerable<ReviewerDto>> ListReviewers()
+        // Gets a list of all reviewers
+        public async Task<IEnumerable<ReviewerDto>> GetAllReviewers()
         {
             return await _context.Reviewers
                 .Select(r => new ReviewerDto
                 {
-                    ReviewersId = r.ReviewersId,
-                    ReviewersName = r.ReviewersName,
-                    ReviewersEmail = r.ReviewersEmail,
-                    ReviewedBookCount = r.Reviews.Count()
-                }).ToListAsync();
+                    ReviewerId = r.ReviewersId,
+                    ReviewerName = r.ReviewerName,
+                    ReviewerEmail = r.ReviewersEmail,
+                    ReviewedBookCount = r.Reviews.Count() // Assuming Reviews is a navigation property
+                })
+                .ToListAsync();
         }
 
-        public async Task<ReviewerDto?> FindReviewer(int id)
+        // Gets a reviewer by ID with their reviews
+        public async Task<ReviewerWithReviewsDto?> GetReviewerById(int reviewerId)
         {
-            var reviewer = await _context.Reviewers
-                .Include(r => r.Reviews)
-                .FirstOrDefaultAsync(r => r.ReviewersId == id);
+            return await _context.Reviewers
+                .Where(r => r.ReviewersId == reviewerId)
+                .Select(r => new ReviewerWithReviewsDto
+                {
+                    ReviewerId = r.ReviewersId,
+                    ReviewerName = r.ReviewerName,
+                    ReviewerEmail = r.ReviewersEmail,
+                    Reviews = r.Reviews.Select(review => new ReviewInfoDto
+                    {
+                        ReviewId = review.ReviewId,
+                        BookName = review.Book.BookName, // Assuming Book has a BookName property
+                        ReviewText = review.ReviewText,
+                        ReviewDate = review.ReviewDate
+                    }).ToList()
+                })
+                .FirstOrDefaultAsync();
+        }
 
-            if (reviewer == null) return null;
+        // Adds a new reviewer
+        public async Task<ServiceResponse> AddReviewer(CreateReviewerDto createReviewerDto)
+        {
+            var response = new ServiceResponse();
 
-            return new ReviewerDto
+            // Validation checks for the incoming DTO
+            if (string.IsNullOrWhiteSpace(createReviewerDto.ReviewerName))
             {
-                ReviewersId = reviewer.ReviewersId,
-                ReviewersName = reviewer.ReviewersName,
-                ReviewersEmail = reviewer.ReviewersEmail,
-                ReviewedBookCount = reviewer.Reviews.Count()
-            };
-        }
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Reviewer name cannot be empty.");
+                return response;
+            }
 
-        public async Task<ServiceResponse> AddReviewer(ReviewerDto reviewerDto)
-        {
-            var serviceResponse = new ServiceResponse();
+            if (string.IsNullOrWhiteSpace(createReviewerDto.ReviewerEmail))
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Reviewer email cannot be empty.");
+                return response;
+            }
 
             var reviewer = new Reviewer
             {
-                ReviewersName = reviewerDto.ReviewersName,
-                ReviewersEmail = reviewerDto.ReviewersEmail
+                ReviewerName = createReviewerDto.ReviewerName,
+                ReviewersEmail = createReviewerDto.ReviewerEmail
             };
 
-            _context.Reviewers.Add(reviewer);
-            await _context.SaveChangesAsync();
-
-            serviceResponse.Status = ServiceResponse.ServiceStatus.Created;
-            serviceResponse.CreatedId = reviewer.ReviewersId;
-
-            return serviceResponse;
-        }
-
-        public async Task<ServiceResponse> UpdateReviewer(int id, ReviewerDto reviewerDto)
-        {
-            var serviceResponse = new ServiceResponse();
-
-            var existingReviewer = await _context.Reviewers.FindAsync(id);
-            if (existingReviewer == null)
+            try
             {
-                serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
-                serviceResponse.Messages.Add("Reviewer not found");
-                return serviceResponse;
+                await _context.Reviewers.AddAsync(reviewer);
+                await _context.SaveChangesAsync();
+
+                response.Status = ServiceResponse.ServiceStatus.Created;
+                response.CreatedId = reviewer.ReviewersId;
+            }
+            catch (DbUpdateException ex)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("There was an error adding the reviewer.");
+                response.Messages.Add(ex.Message);
             }
 
-            existingReviewer.ReviewersName = reviewerDto.ReviewersName;
-            existingReviewer.ReviewersEmail = reviewerDto.ReviewersEmail;
+            return response;
+        }
+
+        // Updates an existing reviewer
+        public async Task<ServiceResponse> UpdateReviewer(int reviewerId, UpdateReviewerDto updateReviewerDto)
+        {
+            var response = new ServiceResponse();
+
+            var reviewer = await _context.Reviewers.FindAsync(reviewerId);
+            if (reviewer == null)
+            {
+                response.Status = ServiceResponse.ServiceStatus.NotFound;
+                response.Messages.Add("Reviewer not found");
+                return response;
+            }
+
+            // Validation checks
+            if (string.IsNullOrWhiteSpace(updateReviewerDto.ReviewerName))
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Reviewer name cannot be empty.");
+                return response;
+            }
+
+            if (string.IsNullOrWhiteSpace(updateReviewerDto.ReviewerEmail))
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Reviewer email cannot be empty.");
+                return response;
+            }
+
+            reviewer.ReviewerName = updateReviewerDto.ReviewerName;
+            reviewer.ReviewersEmail = updateReviewerDto.ReviewerEmail;
 
             try
             {
                 await _context.SaveChangesAsync();
-                serviceResponse.Status = ServiceResponse.ServiceStatus.Updated;
+                response.Status = ServiceResponse.ServiceStatus.Updated;
             }
             catch (DbUpdateConcurrencyException)
             {
-                serviceResponse.Status = ServiceResponse.ServiceStatus.Error;
-                serviceResponse.Messages.Add("An error occurred updating the reviewer");
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("An error occurred updating the reviewer.");
             }
 
-            return serviceResponse;
+            return response;
         }
 
-        public async Task<ServiceResponse> DeleteReviewer(int id)
+        // Deletes a reviewer by ID
+        public async Task<ServiceResponse> DeleteReviewer(int reviewerId)
         {
-            var serviceResponse = new ServiceResponse();
+            var response = new ServiceResponse();
 
-            var reviewer = await _context.Reviewers.FindAsync(id);
+            var reviewer = await _context.Reviewers.FindAsync(reviewerId);
             if (reviewer == null)
             {
-                serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
-                serviceResponse.Messages.Add("Reviewer not found");
-                return serviceResponse;
+                response.Status = ServiceResponse.ServiceStatus.NotFound;
+                response.Messages.Add("Reviewer not found");
+                return response;
             }
 
-            _context.Reviewers.Remove(reviewer);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.Reviewers.Remove(reviewer);
+                await _context.SaveChangesAsync();
+                response.Status = ServiceResponse.ServiceStatus.Deleted;
+            }
+            catch (Exception ex)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Error encountered while deleting the reviewer");
+                response.Messages.Add(ex.Message);
+            }
 
-            serviceResponse.Status = ServiceResponse.ServiceStatus.Deleted;
-            return serviceResponse;
+            return response;
         }
     }
 }

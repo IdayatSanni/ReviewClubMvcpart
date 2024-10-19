@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace ReviewClubCms.Models
+namespace ReviewClubMvcpart.Models
 {
     public class Review
     {
@@ -16,13 +16,13 @@ namespace ReviewClubCms.Models
         public DateTime ReviewDate { get; set; } = DateTime.UtcNow;
 
         [ForeignKey("Book")]
-        public int BookId { get; set; }
-        public virtual Book Book { get; set; } = new();
+        public int? BookId { get; set; } // Make BookId nullable
+        public virtual Book? Book { get; set; } // Make Book nullable
 
-        [ForeignKey("Reviewers")]
-        public int ReviewersId { get; set; }
-        public virtual Reviewer Reviewers { get; set; } = new();
+        [ForeignKey("Reviewer")]
+        public int? ReviewersId { get; set; } // Make ReviewersId nullable
+        public virtual Reviewer? Reviewer { get; set; } // Make Reviewer nullable
 
-        public bool IsApproved { get; set; } = false; // New property for approval status
+        public bool IsApproved { get; set; } = false;
     }
 }

@@ -1,0 +1,34 @@
+﻿@model ReviewClubMvcpart.Dtos.ReviewerWithReviewsDto
+
+<h1>Reviewer Details</h1>
+
+<div>
+    <h3>@Model.ReviewerName</h3>
+    <p><strong>Email:</strong> @Model.ReviewerEmail</p>
+    <p><strong>Reviewed Books:</strong> @Model.Reviews.Count</p>
+
+    <a href="@Url.Action("Edit", "ReviewerPage", new { id = Model.ReviewerId })" class="btn btn-primary">Edit Reviewer</a>
+    <form method="POST" action="@Url.Action("Delete", "ReviewerPage")" style="display:inline;">
+        <input type="hidden" name="reviewerId" value="@Model.ReviewerId" />
+        <input type="submit" value="Delete Reviewer" class="btn btn-danger" />
+    </form>
+</div>
+
+<h4>Reviews:</h4>
+@if (Model.Reviews != null && Model.Reviews.Any())
+{
+    <ul>
+        @foreach (var review in Model.Reviews)
+        {
+            <li>
+                <strong>@review.BookName</strong>: @review.ReviewText - <em>on @review.ReviewDate.ToShortDateString()</em>
+            </li>
+        }
+    </ul>
+}
+else
+{
+    <p>No reviews found for this reviewer.</p>
+}
+
+<a href="@Url.Action("List", "ReviewerPage")" class="btn btn-secondary">Back to List</a>

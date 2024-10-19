@@ -1,4 +1,4 @@
-namespace ReviewClubCms.Models
+namespace ReviewClubMvcpart.Models
 {
     public class ErrorViewModel
     {

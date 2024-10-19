@@ -1,0 +1,18 @@
+﻿@model ReviewClubMvcpart.Dtos.CategoryDto
+
+@{
+    ViewData["Title"] = "Edit Category";
+}
+
+<h1>Edit Category</h1>
+
+<form asp-action="Update" method="post">
+    <input type="hidden" asp-for="Id" />
+    <div class="form-group">
+        <label asp-for="BookCategory"></label>
+        <input asp-for="BookCategory" class="form-control" required />
+    </div>
+    <button type="submit" class="btn btn-primary">Update Category</button>
+</form>
+
+<a asp-controller="CategoryPage" asp-action="List" class="btn btn-secondary">Back to List</a>

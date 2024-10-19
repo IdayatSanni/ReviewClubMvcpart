@@ -1,6 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
 
-namespace ReviewClubCms.Dtos
+namespace ReviewClubMvcpart.Dtos
 {
     public class ReviewDto
     {
@@ -11,11 +12,12 @@ namespace ReviewClubCms.Dtos
         public string ReviewText { get; set; } = "";
 
         public DateTime ReviewDate { get; set; } = DateTime.UtcNow;
-        public int BookId { get; set; }
-        public int ReviewersId { get; set; }
 
-        public string? BookName { get; set; } = "";
-        public string? ReviewersName { get; set; } = "";
+        public int? BookId { get; set; } // Make BookId nullable
+        public int? ReviewersId { get; set; } // Make ReviewersId nullable
+
+        public string? BookName { get; set; } // Make BookName nullable
+        public string? ReviewerName { get; set; } // Make ReviewerName nullable
     }
 
     public class CreateReviewDto
@@ -25,23 +27,25 @@ namespace ReviewClubCms.Dtos
         public string ReviewText { get; set; } = "";
 
         [Required]
-        public int ReviewersId { get; set; }
+        public int? ReviewersId { get; set; } // Make ReviewersId nullable
 
         [Required]
-        public int BookId { get; set; }
+        public int? BookId { get; set; } // Make BookId nullable
     }
 
     public class UpdateReviewDto
     {
         [Required]
+        public int ReviewId { get; set; }
+
+        [Required]
         [MaxLength(1000)]
         public string ReviewText { get; set; } = "";
     }
 
-    public class deleteReviewDto
+    public class DeleteReviewDto
     {
         [Required]
-        [MaxLength(1000)]
-        public string ReviewText { get; set; } = "";
+        public int ReviewId { get; set; }
     }
 }

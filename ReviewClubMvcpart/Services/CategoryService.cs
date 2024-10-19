@@ -1,13 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore;
-using ReviewClubCms.Data;
-using ReviewClubCms.Dtos;
-using ReviewClubCms.Interfaces;
-using ReviewClubCms.Models;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿
+using Microsoft.EntityFrameworkCore;
+using ReviewClubMvcpart.Dtos;
+using ReviewClubMvcpart.Interfaces;
+using ReviewClubMvcpart.Models;
+using System;
+using ReviewClubMvcpart.Data;
 
-namespace ReviewClubCms.Services
+namespace ReviewClubMvcpart.Services
 {
     public class CategoryService : ICategoryService
     {
@@ -18,91 +17,154 @@ namespace ReviewClubCms.Services
             _context = context;
         }
 
-        public async Task<IEnumerable<CategoryDto>> ListCategories()
+        // List all categories with their book counts
+        public async Task<IEnumerable<CategoryDto>> ListCategoriesWithBookCount()
         {
-            return await _context.Categories
-                .Select(c => new CategoryDto
+            var categories = await _context.Categories.ToListAsync();
+            var categoryDtos = new List<CategoryDto>();
+
+            foreach (var category in categories)
+            {
+                categoryDtos.Add(new CategoryDto
                 {
-                    Id = c.Id,
-                    BookCategory = c.BookCategory
-                }).ToListAsync();
+                    Id = category.Id,
+                    BookCategory = category.BookCategory,
+                    BookCount = category.Books.Count
+                });
+            }
+
+            return categoryDtos;
         }
 
         public async Task<CategoryDto?> FindCategory(int id)
         {
-            var category = await _context.Categories.FindAsync(id);
-            if (category == null) return null;
+            var category = await _context.Categories
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (category == null)
+            {
+                return null;
+            }
 
             return new CategoryDto
             {
                 Id = category.Id,
-                BookCategory = category.BookCategory
+                BookCategory = category.BookCategory,
+                BookCount = category.Books.Count
             };
         }
 
-        public async Task<ServiceResponse> AddCategory(CategoryDto categoryDto)
+        // Add a new category
+        public async Task<ServiceResponse> AddCategory(CreateCategoryDto createCategoryDto)
         {
-            var serviceResponse = new ServiceResponse();
+            var response = new ServiceResponse();
+
+            // to validate
+            if (string.IsNullOrWhiteSpace(createCategoryDto.BookCategory))
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Category name cannot be empty.");
+                return response;
+            }
 
             var category = new Category
             {
-                BookCategory = categoryDto.BookCategory
+                BookCategory = createCategoryDto.BookCategory
             };
-
-            _context.Categories.Add(category);
-            await _context.SaveChangesAsync();
-
-            serviceResponse.Status = ServiceResponse.ServiceStatus.Created;
-            serviceResponse.CreatedId = category.Id;
-
-            return serviceResponse;
-        }
-
-        public async Task<ServiceResponse> UpdateCategory(int id, CategoryDto categoryDto)
-        {
-            var serviceResponse = new ServiceResponse();
-
-            var existingCategory = await _context.Categories.FindAsync(id);
-            if (existingCategory == null)
-            {
-                serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
-                serviceResponse.Messages.Add("Category not found");
-                return serviceResponse;
-            }
-
-            existingCategory.BookCategory = categoryDto.BookCategory;
 
             try
             {
+                _context.Categories.Add(category);
                 await _context.SaveChangesAsync();
-                serviceResponse.Status = ServiceResponse.ServiceStatus.Updated;
+                response.Status = ServiceResponse.ServiceStatus.Created;
+                response.CreatedId = category.Id;
+            }
+            catch (Exception ex)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("There was an error adding the category.");
+                response.Messages.Add(ex.Message);
+            }
+
+            return response;
+        }
+
+        // Update an existing category
+        public async Task<ServiceResponse> UpdateCategory(UpdateCategory updateCategoryDto)
+        {
+            var response = new ServiceResponse();
+
+            var category = await _context.Categories.FindAsync(updateCategoryDto.Id);
+            if (category == null)
+            {
+                response.Status = ServiceResponse.ServiceStatus.NotFound;
+                response.Messages.Add("Category not found");
+                return response;
+            }
+
+            category.BookCategory = updateCategoryDto.BookCategory;
+
+            try
+            {
+                _context.Entry(category).State = EntityState.Modified;
+                await _context.SaveChangesAsync();
+                response.Status = ServiceResponse.ServiceStatus.Updated;
             }
             catch (DbUpdateConcurrencyException)
             {
-                serviceResponse.Status = ServiceResponse.ServiceStatus.Error;
-                serviceResponse.Messages.Add("An error occurred updating the category");
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("An error occurred updating the category.");
             }
 
-            return serviceResponse;
+            return response;
         }
 
+        // Delete a category by its ID
         public async Task<ServiceResponse> DeleteCategory(int id)
         {
-            var serviceResponse = new ServiceResponse();
-
+            var response = new ServiceResponse();
             var category = await _context.Categories.FindAsync(id);
             if (category == null)
             {
-                serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
-                serviceResponse.Messages.Add("Category not found");
-                return serviceResponse;
+                response.Status = ServiceResponse.ServiceStatus.NotFound;
+                response.Messages.Add("Category cannot be deleted because it does not exist.");
+                return response;
             }
 
-            _context.Categories.Remove(category);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.Categories.Remove(category);
+                await _context.SaveChangesAsync();
+                response.Status = ServiceResponse.ServiceStatus.Deleted;
+            }
+            catch (Exception ex)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Error encountered while deleting the category: " + ex.Message);
+            }
 
-            serviceResponse.Status = ServiceResponse.ServiceStatus.Deleted;
-            return serviceResponse;
+            return response;
+        }
+
+        // Get books associated with a specific category
+        public async Task<IEnumerable<BookDto>> GetBooksByCategory(int categoryId)
+        {
+            var books = await _context.Books
+                .Where(b => b.CategoryId == categoryId)
+                .ToListAsync();
+
+            var bookDtos = new List<BookDto>();
+            foreach (var book in books)
+            {
+                bookDtos.Add(new BookDto
+                {
+                    Id = book.Id,
+                    BookName = book.BookName,
+                    BookAuthor = book.BookAuthor,
+                });
+            }
+
+            return bookDtos;
         }
     }
 }

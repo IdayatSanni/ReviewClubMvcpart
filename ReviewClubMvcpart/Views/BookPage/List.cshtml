@@ -1,0 +1,50 @@
+﻿@model IEnumerable<ReviewClubMvcpart.Dtos.BookDto>
+
+@{
+    ViewData["Title"] = "Book List";
+}
+
+<h1>Books</h1>
+
+<p>
+    <a asp-controller="BookPage" asp-action="New" class="btn btn-primary">Add New Book</a>
+</p>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Book ID</th>
+            <th>Book Image</th>
+            <th>Book Name</th>
+            <th>Author</th>
+            <th>Category</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var book in Model)
+        {
+            <tr>
+                <td>@book.Id</td>
+                <td>
+                    @if (!string.IsNullOrEmpty(book.BookPicture)) 
+                    {
+                        <img src="@Url.Content("~/images/books/" + book.BookPicture)" alt="@book.BookName" style="width: 50px; height: 75px;" />
+                    }
+                    else
+                    {
+                        <img src="~/images/books/default.png" alt="No Image" style="width: 50px; height: 75px;" /> 
+                    }
+                </td>
+                <td>@book.BookName</td>
+                <td>@book.BookAuthor</td>
+                <td>@book.CategoryName</td>
+                <td>
+                    <a asp-controller="BookPage" asp-action="Details" asp-route-id="@book.Id" class="btn btn-info">Details</a>
+                    <a asp-controller="BookPage" asp-action="Edit" asp-route-id="@book.Id" class="btn btn-warning">Edit</a>
+                    <a asp-controller="BookPage" asp-action="ConfirmDelete" asp-route-id="@book.Id" class="btn btn-danger">Delete</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

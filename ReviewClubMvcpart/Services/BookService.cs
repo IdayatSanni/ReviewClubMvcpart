@@ -1,46 +1,59 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
-using ReviewClubCms.Data;
-using ReviewClubCms.Dtos;
-using ReviewClubCms.Interfaces;
-using ReviewClubCms.Models;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using Microsoft.EntityFrameworkCore;
+using ReviewClubMvcpart.Data;
+using ReviewClubMvcpart.Dtos;
+using ReviewClubMvcpart.Interfaces;
+using ReviewClubMvcpart.Models;
+using Microsoft.Extensions.Logging;
 
-namespace ReviewClubCms.Services
+namespace ReviewClubMvcpart.Services
 {
     public class BookService : IBookService
     {
         private readonly ApplicationDbContext _context;
+        private readonly ILogger<BookService> _logger;
 
-        public BookService(ApplicationDbContext context)
+        public BookService(ApplicationDbContext context, ILogger<BookService> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
-        // Retrieves a comprehensive list of books with their details and review counts
-        public async Task<IEnumerable<BookWithReviewsDto>> ListBooks()
+        public async Task<IEnumerable<BookDto>> ListBooks()
         {
-            return await _context.Books
-                .Select(b => new BookWithReviewsDto
-                {
-                    Id = b.Id,
-                    BookName = b.BookName,
-                    BookAuthor = b.BookAuthor,
-                    CategoryId = b.CategoryId,
-                    IsBookOfTheMonth = b.IsBookOfTheMonth,
-                    BookPicture = b.BookPicture,
-                    ReviewCount = b.Reviews.Count() // Get the review count
-                })
+            var books = await _context.Books
+                .Include(b => b.Reviews)
+                .Include(b => b.Category)
                 .ToListAsync();
+
+            return books.Select(book => new BookDto
+            {
+                Id = book.Id,
+                BookName = book.BookName,
+                BookAuthor = book.BookAuthor,
+                CategoryId = book.CategoryId,
+                BookPicture = book.BookPicture,
+                HasBookPic = book.HasPic,
+                CategoryName = book.Category?.BookCategory ?? "Unknown", // Handle null category
+                IsBookOfTheMonth = book.IsBookOfTheMonth,
+                ReviewCount = book.Reviews.Count,
+                Reviews = book.Reviews.Select(review => new BookReviewDto
+                {
+                    ReviewId = review.ReviewId,
+                    ReviewText = review.ReviewText,
+                    ReviewDate = review.ReviewDate,
+                    ReviewerName = review.Reviewer != null ? review.Reviewer.ReviewerName : "Unknown" // Handle null reviewer
+                }).ToList()
+            }).ToList();
         }
 
-        // Finds a specific book by its ID
         public async Task<BookDto?> FindBook(int id)
         {
-            var book = await _context.Books.FindAsync(id);
+            var book = await _context.Books
+                .Include(b => b.Reviews)
+                .ThenInclude(r => r.Reviewer)
+                .Include(b => b.Category)
+                .FirstOrDefaultAsync(b => b.Id == id);
+
             if (book == null) return null;
 
             return new BookDto
@@ -49,127 +62,208 @@ namespace ReviewClubCms.Services
                 BookName = book.BookName,
                 BookAuthor = book.BookAuthor,
                 CategoryId = book.CategoryId,
-                IsBookOfTheMonth = book.IsBookOfTheMonth
+                CategoryName = book.Category?.BookCategory ?? "Unknown", // Handle null category
+                IsBookOfTheMonth = book.IsBookOfTheMonth,
+                ReviewCount = book.Reviews.Count,
+                Reviews = book.Reviews.Select(review => new BookReviewDto
+                {
+                    ReviewId = review.ReviewId,
+                    ReviewText = review.ReviewText,
+                    ReviewDate = review.ReviewDate,
+                    ReviewerName = review.Reviewer?.ReviewerName ?? "Unknown" // Handle null reviewer
+                }).ToList()
             };
         }
 
-        // Adds a new book
-        public async Task<ServiceResponse> AddBook(BookDto bookDto)
+        public async Task<ServiceResponse> AddBook(CreateBookDto createBookDto)
         {
+            var response = new ServiceResponse();
+
+            // Check if the category exists and if the name matches
+            var category = await _context.Categories.FindAsync(createBookDto.CategoryId);
+            if (category == null || category.BookCategory != createBookDto.CategoryName)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Invalid category ID or category name does not match.");
+                return response;
+            }
+
+            // Proceed with book creation
             var book = new Book
             {
-                BookName = bookDto.BookName,
-                BookAuthor = bookDto.BookAuthor,
-                CategoryId = bookDto.CategoryId,
-                IsBookOfTheMonth = bookDto.IsBookOfTheMonth,
-                BookPicture = "" // Initialize with an empty string or a default image path
+                BookName = createBookDto.BookName,
+                BookAuthor = createBookDto.BookAuthor,
+                CategoryId = createBookDto.CategoryId,
+                IsBookOfTheMonth = createBookDto.IsBookOfTheMonth,
             };
 
             _context.Books.Add(book);
             await _context.SaveChangesAsync();
 
-            return new ServiceResponse { Status = ServiceResponse.ServiceStatus.Created, CreatedId = book.Id };
+            response.Status = ServiceResponse.ServiceStatus.Created;
+            response.CreatedId = book.Id;
+            return response;
         }
 
-        // Updates an existing book
-        public async Task<ServiceResponse> UpdateBook(int id, BookDto bookDto)
+        public async Task<ServiceResponse> UpdateBook(UpdateBookDto updateBookDto)
         {
-            var existingBook = await _context.Books.FindAsync(id);
-            if (existingBook == null)
-                return new ServiceResponse { Status = ServiceResponse.ServiceStatus.NotFound };
+            var response = new ServiceResponse();
 
-            existingBook.BookName = bookDto.BookName;
-            existingBook.BookAuthor = bookDto.BookAuthor;
-            existingBook.CategoryId = bookDto.CategoryId;
-            existingBook.IsBookOfTheMonth = bookDto.IsBookOfTheMonth;
-
-            _context.Books.Update(existingBook);
-            await _context.SaveChangesAsync();
-
-            return new ServiceResponse { Status = ServiceResponse.ServiceStatus.Success };
-        }
-
-        // Deletes a book
-        public async Task<ServiceResponse> DeleteBook(int id)
-        {
-            var book = await _context.Books.FindAsync(id);
+            var book = await _context.Books.FindAsync(updateBookDto.Id);
             if (book == null)
-                return new ServiceResponse { Status = ServiceResponse.ServiceStatus.NotFound };
-
-            _context.Books.Remove(book);
-            await _context.SaveChangesAsync();
-
-            return new ServiceResponse { Status = ServiceResponse.ServiceStatus.Success };
-        }
-
-        // Uploads an image for a book
-        public async Task<ServiceResponse> UploadBookImage(int id, IFormFile bookImage)
-        {
-            var book = await _context.Books.FindAsync(id);
-            if (book == null)
-                return new ServiceResponse { Status = ServiceResponse.ServiceStatus.NotFound };
-
-            var uploads = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images");
-            if (bookImage.Length > 0)
             {
-                var filePath = Path.Combine(uploads, $"{book.Id}_{bookImage.FileName}");
-                using (var stream = new FileStream(filePath, FileMode.Create))
+                response.Status = ServiceResponse.ServiceStatus.NotFound;
+                response.Messages.Add("Book not found");
+                return response;
+            }
+
+            // Validation checks
+            if (string.IsNullOrWhiteSpace(updateBookDto.BookName))
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Book name cannot be empty.");
+                return response;
+            }
+
+            if (string.IsNullOrWhiteSpace(updateBookDto.BookAuthor))
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Book author cannot be empty.");
+                return response;
+            }
+
+            if (updateBookDto.CategoryId <= 0)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Invalid category ID.");
+                return response;
+            }
+
+            // Update the book properties
+            book.BookName = updateBookDto.BookName;
+            book.BookAuthor = updateBookDto.BookAuthor;
+            book.CategoryId = updateBookDto.CategoryId;
+            book.IsBookOfTheMonth = updateBookDto.IsBookOfTheMonth;
+
+            try
+            {
+                // Handle image upload if provided
+                if (updateBookDto.BookImage != null)
                 {
-                    await bookImage.CopyToAsync(stream);
+                    var uploadResponse = await UploadBookImage(book.Id, updateBookDto.BookImage);
+                    if (uploadResponse.Status != ServiceResponse.ServiceStatus.Updated)
+                    {
+                        return uploadResponse; // Return if there was an error
+                    }
                 }
 
-                book.BookPicture = $"/images/{book.Id}_{bookImage.FileName}";
-                _context.Books.Update(book);
                 await _context.SaveChangesAsync();
+                response.Status = ServiceResponse.ServiceStatus.Updated;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("An error occurred updating the book.");
+                response.Messages.Add(ex.Message);
             }
 
-            return new ServiceResponse { Status = ServiceResponse.ServiceStatus.Success };
+            return response;
         }
 
-        // Lists all reviews for a specific book
-        public async Task<IEnumerable<ReviewDto>> ListReviewsForBook(int bookId)
+        public async Task<ServiceResponse> DeleteBook(int id)
         {
-            return await _context.Reviews
-                .Where(r => r.BookId == bookId)
-                .Include(r => r.Reviewers)
-                .Select(r => new ReviewDto
+            var response = new ServiceResponse();
+
+            var book = await _context.Books.FindAsync(id);
+            if (book == null)
+            {
+                response.Status = ServiceResponse.ServiceStatus.NotFound;
+                response.Messages.Add("Book not found");
+                return response;
+            }
+
+            try
+            {
+                _context.Books.Remove(book);
+                await _context.SaveChangesAsync();
+                response.Status = ServiceResponse.ServiceStatus.Deleted;
+            }
+            catch (DbUpdateException ex)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Error occurred while deleting the book.");
+                response.Messages.Add(ex.Message);
+            }
+
+            return response;
+        }
+
+        public async Task<ServiceResponse> UploadBookImage(int id, IFormFile bookImage)
+        {
+            var response = new ServiceResponse();
+
+            var book = await _context.Books.FindAsync(id);
+            if (book == null)
+            {
+                response.Status = ServiceResponse.ServiceStatus.NotFound;
+                response.Messages.Add($"Book {id} not found");
+                return response;
+            }
+
+            if (bookImage?.Length > 0)
+            {
+                // Validate file type
+                var validExtensions = new List<string> { ".jpeg", ".jpg", ".png", ".gif" };
+                var bookImageExtension = Path.GetExtension(bookImage.FileName).ToLowerInvariant();
+                if (!validExtensions.Contains(bookImageExtension))
                 {
-                    ReviewId = r.ReviewId,
-                    ReviewText = r.ReviewText,
-                    ReviewDate = r.ReviewDate,
-                    BookId = r.BookId,
-                    ReviewersId = r.ReviewersId,
-                    ReviewersName = r.Reviewers.ReviewersName
-                })
-                .ToListAsync();
-        }
+                    response.Messages.Add($"{bookImageExtension} is not a valid file extension");
+                    response.Status = ServiceResponse.ServiceStatus.Error;
+                    return response;
+                }
 
-        // Approves a review
-        public async Task<ServiceResponse> ApproveReview(int reviewId)
-        {
-            var review = await _context.Reviews.FindAsync(reviewId);
-            if (review == null)
+                // Create a unique filename
+                var fileName = $"{id}{bookImageExtension}";
+                var filePath = Path.Combine("wwwroot/images/books/", fileName);
+
+                // Remove old picture if exists
+                if (!string.IsNullOrEmpty(book.BookPicture))
+                {
+                    var oldFilePath = Path.Combine("wwwroot/images/books/", book.BookPicture);
+                    if (File.Exists(oldFilePath))
+                    {
+                        File.Delete(oldFilePath);
+                    }
+                }
+
+                // Save the new image
+                using (var targetStream = File.Create(filePath))
+                {
+                    await bookImage.CopyToAsync(targetStream);
+                }
+
+                book.BookPicture = fileName;
+                book.HasPic = true; // Set HasBookPic to true
+
+                try
+                {
+                    await _context.SaveChangesAsync();
+                    response.Status = ServiceResponse.ServiceStatus.Updated;
+                }
+                catch (DbUpdateException ex)
+                {
+                    response.Status = ServiceResponse.ServiceStatus.Error;
+                    response.Messages.Add("Error occurred while saving the book image.");
+                    response.Messages.Add(ex.Message);
+                }
+            }
+            else
             {
-                return new ServiceResponse { Status = ServiceResponse.ServiceStatus.NotFound };
+                response.Messages.Add("No file content");
+                response.Status = ServiceResponse.ServiceStatus.Error;
             }
 
-            // Logic for approving the review can be added here
-
-            return new ServiceResponse { Status = ServiceResponse.ServiceStatus.Success };
-        }
-
-        // Deletes a review
-        public async Task<ServiceResponse> DeleteReview(int reviewId)
-        {
-            var review = await _context.Reviews.FindAsync(reviewId);
-            if (review == null)
-            {
-                return new ServiceResponse { Status = ServiceResponse.ServiceStatus.NotFound };
-            }
-
-            _context.Reviews.Remove(review);
-            await _context.SaveChangesAsync();
-            return new ServiceResponse { Status = ServiceResponse.ServiceStatus.Success };
+            return response;
         }
     }
 }

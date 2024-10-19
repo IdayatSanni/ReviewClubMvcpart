@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-//using ReviewClubCms.Data;
-//using ReviewClubCms.Interfaces;
-//using ReviewClubCms.Services;
 using ReviewClubMvcpart.Data;
+using ReviewClubMvcpart.Interfaces;
+using ReviewClubMvcpart.Services;
+
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +18,10 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
     .AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<IReviewService, ReviewService>();
+builder.Services.AddScoped<IReviewerService, ReviewerService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -32,10 +36,7 @@ builder.Services.AddSwaggerGen(options =>
 });
 var app = builder.Build();
 
-//builder.Services.AddScoped<IReviewService, ReviewService>();
-//builder.Services.AddScoped<IReviewerService, ReviewerService>();
-//builder.Services.AddScoped<ICategoryService, CategoryService>();
-//builder.Services.AddScoped<IBookService, BookService>();
+
 
 
 

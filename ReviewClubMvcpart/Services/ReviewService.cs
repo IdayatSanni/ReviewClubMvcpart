@@ -1,12 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore;
-using ReviewClubCms.Data;
-using ReviewClubCms.Dtos;
-using ReviewClubCms.Interfaces;
-using ReviewClubCms.Models;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using ReviewClubMvcpart.Data;
+using ReviewClubMvcpart.Dtos;
+using ReviewClubMvcpart.Interfaces;
+using ReviewClubMvcpart.Models;
 
-namespace ReviewClubCms.Services
+namespace ReviewClubMvcpart.Services
 {
     public class ReviewService : IReviewService
     {
@@ -17,31 +18,32 @@ namespace ReviewClubCms.Services
             _context = context;
         }
 
-        public async Task<IEnumerable<ReviewDto>> ListReviews()
+        // List all reviews with reviewer names and book information
+        public async Task<IEnumerable<ReviewDto>> ListAllReviews()
         {
-            var reviews = await _context.Reviews
-                .Include(r => r.Book)
-                .Include(r => r.Reviewers)
+            return await _context.Reviews
+                .Include(r => r.Reviewer) // Include the Reviewer
+                .Include(r => r.Book)     // Include the Book
+                .Select(r => new ReviewDto
+                {
+                    ReviewId = r.ReviewId,
+                    ReviewText = r.ReviewText,
+                    ReviewDate = r.ReviewDate,
+                    BookId = r.BookId,
+                    ReviewersId = r.ReviewersId,
+                    BookName = r.Book != null ? r.Book.BookName : "Unknown", // Handle null Book
+                    ReviewerName = r.Reviewer != null ? r.Reviewer.ReviewerName : "Unknown" // Handle null Reviewer
+                })
                 .ToListAsync();
-
-            var reviewDtos = reviews.Select(review => new ReviewDto
-            {
-                ReviewId = review.ReviewId,
-                ReviewText = review.ReviewText,
-                ReviewDate = review.ReviewDate,
-                BookName = review.Book?.BookName ?? "Unknown",
-                ReviewersName = review.Reviewers?.ReviewersName ?? "Anonymous"
-            });
-
-            return reviewDtos;
         }
 
-        public async Task<ReviewDto?> FindReview(int id)
+        // Get a specific review by its ID
+        public async Task<ReviewDto?> GetReviewById(int reviewId)
         {
             var review = await _context.Reviews
+                .Include(r => r.Reviewer)
                 .Include(r => r.Book)
-                .Include(r => r.Reviewers)
-                .FirstOrDefaultAsync(r => r.ReviewId == id);
+                .FirstOrDefaultAsync(r => r.ReviewId == reviewId);
 
             if (review == null) return null;
 
@@ -50,107 +52,173 @@ namespace ReviewClubCms.Services
                 ReviewId = review.ReviewId,
                 ReviewText = review.ReviewText,
                 ReviewDate = review.ReviewDate,
-                BookName = review.Book?.BookName ?? "Unknown",
-                ReviewersName = review.Reviewers?.ReviewersName ?? "Anonymous"
+                BookId = review.BookId,
+                ReviewersId = review.ReviewersId,
+                BookName = review.Book != null ? review.Book.BookName : "Unknown", // Handle null Book
+                ReviewerName = review.Reviewer != null ? review.Reviewer.ReviewerName : "Unknown" // Handle null Reviewer
             };
         }
 
+        // Add a new review
         public async Task<ServiceResponse> AddReview(CreateReviewDto createReviewDto)
         {
-            var serviceResponse = new ServiceResponse();
+            var response = new ServiceResponse();
 
-            // Validate reviewer and book existence
+            // Check if the book exists
+            var book = await _context.Books.Include(b => b.Reviews).FirstOrDefaultAsync(b => b.Id == createReviewDto.BookId);
+            if (book == null)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Book not found.");
+                return response;
+            }
+
+            // Check if the reviewer exists
             var reviewer = await _context.Reviewers.FindAsync(createReviewDto.ReviewersId);
             if (reviewer == null)
             {
-                serviceResponse.Messages.Add("Invalid reviewer ID");
-                serviceResponse.Status = ServiceResponse.ServiceStatus.Error;
-                return serviceResponse;
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Reviewer not found.");
+                return response;
             }
 
-            var book = await _context.Books.FindAsync(createReviewDto.BookId);
-            if (book == null)
-            {
-                serviceResponse.Messages.Add("Invalid book ID");
-                serviceResponse.Status = ServiceResponse.ServiceStatus.Error;
-                return serviceResponse;
-            }
-
+            // Create the review
             var review = new Review
             {
+                BookId = book.Id, // Assign the BookId directly
+                ReviewersId = reviewer.ReviewersId, // Assign the ReviewersId directly
                 ReviewText = createReviewDto.ReviewText,
-                ReviewersId = createReviewDto.ReviewersId,
-                BookId = createReviewDto.BookId,
-                ReviewDate = DateTime.UtcNow
+                ReviewDate = DateTime.UtcNow // Set to current time or manage as needed
             };
 
-            _context.Reviews.Add(review);
-            await _context.SaveChangesAsync();
-
-            serviceResponse.Status = ServiceResponse.ServiceStatus.Created;
-            serviceResponse.CreatedId = review.ReviewId;
-            return serviceResponse;
-        }
-
-        public async Task<ServiceResponse> UpdateReview(int id, UpdateReviewDto updateReviewDto)
-        {
-            var serviceResponse = new ServiceResponse();
-
-            var existingReview = await _context.Reviews.FindAsync(id);
-            if (existingReview == null)
+            try
             {
-                serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
-                serviceResponse.Messages.Add("Review not found");
-                return serviceResponse;
+                await _context.Reviews.AddAsync(review);
+                await _context.SaveChangesAsync();
+
+                response.Status = ServiceResponse.ServiceStatus.Created;
+                response.CreatedId = review.ReviewId; // Return the created review ID
+            }
+            catch (DbUpdateException ex)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Error occurred while adding the review.");
+                response.Messages.Add(ex.Message);
             }
 
-            existingReview.ReviewText = updateReviewDto.ReviewText;
-            _context.Entry(existingReview).State = EntityState.Modified;
+            return response;
+        }
+
+        // Update an existing review
+        public async Task<ServiceResponse> UpdateReview(int reviewId, UpdateReviewDto updateReviewDto)
+        {
+            var response = new ServiceResponse();
+
+            var review = await _context.Reviews.FindAsync(reviewId);
+            if (review == null)
+            {
+                response.Status = ServiceResponse.ServiceStatus.NotFound;
+                response.Messages.Add("Review not found");
+                return response;
+            }
+
+            // Validation check
+            if (string.IsNullOrWhiteSpace(updateReviewDto.ReviewText))
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Review text cannot be empty.");
+                return response;
+            }
+
+            review.ReviewText = updateReviewDto.ReviewText;
 
             try
             {
                 await _context.SaveChangesAsync();
-                serviceResponse.Status = ServiceResponse.ServiceStatus.Updated;
+                response.Status = ServiceResponse.ServiceStatus.Updated;
             }
             catch (DbUpdateConcurrencyException)
             {
-                serviceResponse.Status = ServiceResponse.ServiceStatus.Error;
-                serviceResponse.Messages.Add("An error occurred updating the review");
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("An error occurred updating the review.");
             }
 
-            return serviceResponse;
+            return response;
         }
 
-        public async Task<ServiceResponse> DeleteReview(int id)
+        // List reviews for a specific book
+        public async Task<IEnumerable<ReviewDto>> ListReviewsForBook(int bookId)
         {
-            var serviceResponse = new ServiceResponse();
+            return await _context.Reviews
+                .Where(review => review.BookId == bookId)
+                .Select(review => new ReviewDto
+                {
+                    ReviewId = review.ReviewId,
+                    ReviewText = review.ReviewText,
+                    ReviewDate = review.ReviewDate,
+                    BookId = review.BookId,
+                    ReviewersId = review.ReviewersId,
+                    ReviewerName = review.Reviewer != null ? review.Reviewer.ReviewerName : "Unknown" // Handle null Reviewer
+                })
+                .ToListAsync();
+        }
 
-            var review = await _context.Reviews.FindAsync(id);
+        // Delete a review by its ID
+        public async Task<ServiceResponse> DeleteReview(int reviewId)
+        {
+            var response = new ServiceResponse();
+
+            var review = await _context.Reviews.FindAsync(reviewId);
             if (review == null)
             {
-                serviceResponse.Status = ServiceResponse.ServiceStatus.NotFound;
-                serviceResponse.Messages.Add("Review not found");
-                return serviceResponse;
+                response.Status = ServiceResponse.ServiceStatus.NotFound;
+                response.Messages.Add("Review not found");
+                return response;
             }
 
-            _context.Reviews.Remove(review);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.Reviews.Remove(review);
+                await _context.SaveChangesAsync();
 
-            serviceResponse.Status = ServiceResponse.ServiceStatus.Deleted;
-            return serviceResponse;
+                response.Status = ServiceResponse.ServiceStatus.Deleted;
+            }
+            catch (Exception ex)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("Error encountered while deleting the review.");
+                response.Messages.Add(ex.Message);
+            }
+
+            return response;
         }
 
-        public async Task<ServiceResponse> ApproveReview(int id)
+        // Approve a review by its ID
+        public async Task<ServiceResponse> ApproveReview(int reviewId)
         {
-            var review = await _context.Reviews.FindAsync(id);
+            var response = new ServiceResponse();
+
+            var review = await _context.Reviews.FindAsync(reviewId);
             if (review == null)
-                return new ServiceResponse { Status = ServiceResponse.ServiceStatus.NotFound };
+            {
+                response.Status = ServiceResponse.ServiceStatus.NotFound;
+                response.Messages.Add("Review not found");
+                return response;
+            }
 
-            review.IsApproved = true;
-            await _context.SaveChangesAsync();
+            review.IsApproved = true; // Assuming there's an IsApproved property
+            try
+            {
+                await _context.SaveChangesAsync();
+                response.Status = ServiceResponse.ServiceStatus.Updated;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                response.Status = ServiceResponse.ServiceStatus.Error;
+                response.Messages.Add("An error occurred updating the review approval.");
+            }
 
-            return new ServiceResponse { Status = ServiceResponse.ServiceStatus.Success };
+            return response;
         }
-
     }
 }

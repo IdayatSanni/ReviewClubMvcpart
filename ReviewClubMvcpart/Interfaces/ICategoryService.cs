@@ -1,16 +1,17 @@
-﻿using ReviewClubCms.Dtos;
-using ReviewClubCms.Models;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
+using ReviewClubMvcpart.Dtos;
+using ReviewClubMvcpart.Models;
 
-namespace ReviewClubCms.Interfaces
+namespace ReviewClubMvcpart.Interfaces
 {
     public interface ICategoryService
     {
-        Task<IEnumerable<CategoryDto>> ListCategories();
+        Task<IEnumerable<CategoryDto>> ListCategoriesWithBookCount();
+        Task<IEnumerable<BookDto>> GetBooksByCategory(int categoryId);
         Task<CategoryDto?> FindCategory(int id);
-        Task<ServiceResponse> AddCategory(CategoryDto categoryDto);
-        Task<ServiceResponse> UpdateCategory(int id, CategoryDto categoryDto);
+        Task<ServiceResponse> AddCategory(CreateCategoryDto createCategoryDto); 
+        Task<ServiceResponse> UpdateCategory(UpdateCategory updateCategoryDto);
         Task<ServiceResponse> DeleteCategory(int id);
     }
 }

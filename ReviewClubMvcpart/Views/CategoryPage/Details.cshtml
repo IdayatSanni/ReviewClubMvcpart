@@ -1,0 +1,25 @@
+﻿@model ReviewClubMvcpart.Models.ViewModels.CategoryDetails
+
+<h1>Category: @Model.Category.BookCategory</h1>
+
+@if (Model.BooksInCategory != null && Model.BooksInCategory.Any())
+{
+    <h3>Books in this Category:</h3>
+    <ul>
+        @foreach (var book in Model.BooksInCategory)
+        {
+            <li>
+                <strong>@book.BookName</strong> by @book.BookAuthor
+                <span> - @book.ReviewCount reviews</span>
+                <span> - @(book.IsBookOfTheMonth ? "Book of the Month" : "")</span>
+            </li>
+        }
+    </ul>
+}
+else
+{
+    <p>No books found in this category.</p>
+}
+
+
+<a asp-controller="CategoryPage" asp-action="List" class="btn btn-secondary">Back to List</a>

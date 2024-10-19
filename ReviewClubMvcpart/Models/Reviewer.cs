@@ -1,7 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using ReviewClubMvcpart.Models;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
-namespace ReviewClubCms.Models
+namespace ReviewClubMvcpart.Models
 {
     public class Reviewer
     {
@@ -9,13 +10,13 @@ namespace ReviewClubCms.Models
         public int ReviewersId { get; set; }
 
         [Required]
-        public string ReviewersName { get; set; } = "";
+        public string ReviewerName { get; set; } = "";
 
         [Required]
         [EmailAddress]
         public string ReviewersEmail { get; set; } = "";
 
-        // Navigation property for the reviews written by this reviewer
+        // A reviewer can write many reviews
         public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
     }
 }

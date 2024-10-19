@@ -1,0 +1,19 @@
+﻿@model ReviewClubMvcpart.Dtos.UpdateReviewerDto
+
+<h1>Edit Reviewer</h1>
+
+<form asp-action="Update" method="post">
+    <input type="hidden" asp-for="ReviewerId" />
+    <div class="form-group">
+        <label asp-for="ReviewerName"></label>
+        <input asp-for="ReviewerName" class="form-control" required />
+        <span asp-validation-for="ReviewerName" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="ReviewerEmail"></label>
+        <input asp-for="ReviewerEmail" class="form-control" required />
+        <span asp-validation-for="ReviewerEmail" class="text-danger"></span>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="@Url.Action("List", "ReviewerPage")" class="btn btn-secondary">Back to List</a>
+</form>

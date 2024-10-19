@@ -1,16 +1,22 @@
-﻿using ReviewClubCms.Dtos;
-using ReviewClubCms.Models;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
+using ReviewClubMvcpart.Dtos;
+using ReviewClubMvcpart.Models;
 
-namespace ReviewClubCms.Interfaces
+namespace ReviewClubMvcpart.Interfaces
 {
     public interface IReviewerService
     {
-        Task<IEnumerable<ReviewerDto>> ListReviewers();
-        Task<ReviewerDto?> FindReviewer(int id);
-        Task<ServiceResponse> AddReviewer(ReviewerDto reviewerDto);
-        Task<ServiceResponse> UpdateReviewer(int id, ReviewerDto reviewerDto);
-        Task<ServiceResponse> DeleteReviewer(int id);
+        Task<IEnumerable<ReviewerDto>> GetAllReviewers();
+        Task<ReviewerWithReviewsDto?> GetReviewerById(int reviewerId);
+
+        // Adds a new reviewer
+        Task<ServiceResponse> AddReviewer(CreateReviewerDto createReviewerDto);
+
+        // Updates an existing reviewer
+        Task<ServiceResponse> UpdateReviewer(int reviewerId, UpdateReviewerDto updateReviewerDto);
+
+        // Deletes a reviewer by ID
+        Task<ServiceResponse> DeleteReviewer(int reviewerId);
     }
 }

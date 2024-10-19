@@ -1,0 +1,34 @@
+﻿@model IEnumerable<ReviewClubMvcpart.Dtos.ReviewerDto>
+
+<h1>Reviewers List</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Reviewed Books</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var reviewer in Model)
+        {
+            <tr>
+                <td>@reviewer.ReviewerName</td>
+                <td>@reviewer.ReviewerEmail</td>
+                <td>@reviewer.ReviewedBookCount</td>
+                <td>
+                    <a href="@Url.Action("Details", "ReviewerPage", new { id = reviewer.ReviewerId })" class="btn btn-info">View</a>
+                    <a href="@Url.Action("Edit", "ReviewerPage", new { id = reviewer.ReviewerId })" class="btn btn-primary">Edit</a>
+                    <form method="POST" action="@Url.Action("Delete", "ReviewerPage")" style="display:inline;">
+                        <input type="hidden" name="reviewerId" value="@reviewer.ReviewerId" />
+                        <input type="submit" value="Delete" class="btn btn-danger" />
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<a href="@Url.Action("New", "ReviewerPage")" class="btn btn-success">Add New Reviewer</a>

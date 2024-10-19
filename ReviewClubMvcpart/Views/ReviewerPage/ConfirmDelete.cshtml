@@ -1,0 +1,32 @@
+﻿@model ReviewClubMvcpart.Dtos.ReviewerWithReviewsDto
+
+<h1>Confirm Delete Reviewer</h1>
+
+<div>
+    <h3>Are you sure you want to delete the reviewer "@Model.ReviewerName"?</h3>
+    <p>Email: @Model.ReviewerEmail</p>
+    <p>Reviewed Books: @Model.Reviews.Count</p>
+
+    @if (Model.Reviews != null && Model.Reviews.Any())
+    {
+        <h4>Reviews by this Reviewer:</h4>
+        <ul>
+            @foreach (var review in Model.Reviews)
+            {
+                <li>
+                    <strong>@review.BookName</strong>: @review.ReviewText - <em>on @review.ReviewDate.ToShortDateString()</em>
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        <p>No reviews found for this reviewer.</p>
+    }
+</div>
+
+<form method="post" action="@Url.Action("Delete", "ReviewerPage")">
+    <input type="hidden" name="reviewerId" value="@Model.ReviewerId" />
+    <button type="submit" class="btn btn-danger">Delete</button>
+    <a href="@Url.Action("List", "ReviewerPage")" class="btn btn-secondary">Cancel</a>
+</form>

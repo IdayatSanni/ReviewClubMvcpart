@@ -1,0 +1,17 @@
+﻿@model ReviewClubMvcpart.Dtos.ReviewDto
+
+@{
+    ViewData["Title"] = "Review Details";
+}
+
+<h1>Review Details</h1>
+
+<div>
+    <h3>Review ID: @Model.ReviewId</h3>
+    <p><strong>Book Name:</strong> @Model.BookName</p>
+    <p><strong>Reviewer Name:</strong> @Model.ReviewerName</p>
+    <p><strong>Review Text:</strong> @Model.ReviewText</p>
+    <p><strong>Review Date:</strong> @Model.ReviewDate.ToShortDateString()</p>
+</div>
+
+<a asp-controller="ReviewPage" asp-action="List" class="btn btn-secondary">Back to List</a>
